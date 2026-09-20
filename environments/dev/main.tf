@@ -46,11 +46,11 @@ module "postgresql_flexible_server" {
 
 }
 
-module "linux_virtual_machine" {
-  source = "../../modules/azurerm_linux_virtual_machine"
-  vms    = var.vms
+# module "linux_virtual_machine" {
+#   source = "../../modules/azurerm_linux_virtual_machine"
+#   vms    = var.vms
 
-  depends_on = [module.subnet, module.public_ip]
+#   depends_on = [module.subnet, module.public_ip]
 
-}
+# }
 
