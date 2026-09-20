@@ -142,7 +142,7 @@ stages:
             notifyUsers: |
               akmalh4921@gmal.com
               md.akmal284@gmail.com
-            approvers: 'akmalh4921@gmal.com'
+            approvers: 'akmalh4921@gmail.com'
             instructions: |
               Terraform validation and plan have completed successfully.
               
