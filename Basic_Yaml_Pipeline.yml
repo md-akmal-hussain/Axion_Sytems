@@ -1,3 +1,4 @@
+name: Terraform-Pipeline-$(Date:yyyyMMdd).$(Rev:r)
 trigger:
   branches:
     include:
@@ -120,18 +121,37 @@ stages:
 
         steps:
 
+        # - task: ManualValidation@1
+        #   displayName: 'Approve Feature Branch For Main Merge'
+        #   inputs:
+        #     notifyUsers: |
+        #       $(Build.RequestedForEmail)
+
+        #     instructions: |
+        #       Terraform validation and plan completed successfully.
+
+        #       Please review the Terraform Plan.
+
+        #       Approve this step only if the changes are ready
+        #       to be merged into the main branch.
+
+        #     onTimeout: 'reject'
+
         - task: ManualValidation@1
-          displayName: 'Approve Feature Branch For Main Merge'
           inputs:
             notifyUsers: |
-              $(Build.RequestedForEmail)
-
+              akmalh4921@gmal.com
+              md.akmal284@gmail.com
+            approvers: 'akmalh4921@gmal.com'
             instructions: |
-              Terraform validation and plan completed successfully.
+              Terraform validation and plan have completed successfully.
+              
+              Please review the Terraform Plan and verify:
+              - Resource changes
+              - Additions and deletions
+              - Configuration changes
+              - Potential impact on existing resources
+              
+              Approve only if the Terraform changes are safe and ready for the next stage.
 
-              Please review the Terraform Plan.
-
-              Approve this step only if the changes are ready
-              to be merged into the main branch.
-
-            onTimeout: 'reject'
+            onTimeout: reject  
