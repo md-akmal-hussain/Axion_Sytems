@@ -1,3 +1,4 @@
+name: Terraform-Pipeline-$(Date:yyyyMMdd).$(Rev:r)
 trigger:
   branches:
     include:
@@ -135,3 +136,5 @@ stages:
               to be merged into the main branch.
 
             onTimeout: 'reject'
+
+     
