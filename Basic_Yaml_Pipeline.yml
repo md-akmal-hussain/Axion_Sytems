@@ -1,0 +1,137 @@
+trigger:
+  branches:
+    include:
+      - features/*
+
+pr: none
+
+variables:
+  - group: Terraform-Variables
+
+  - name: terraformWorkingDirectory
+    value: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+  - name: serviceConnection
+    value: 'Yaml_Svc'  
+
+  - name: poolName
+    value: 'Yaml_Pool'  
+
+stages:
+
+  - stage: TerraformInitAndValidateFmt
+    group: Terragorm
+    displayName: Terraform Initialization And Validation
+
+    isSkippable: false
+    lockBehavior: sequential
+    
+
+    pool:
+      name: $(poolName)
+       
+    jobs:
+
+      - job: Job1_TerraformInitAndValidateAndFormating
+        displayName: Terraform Initialization And Validation And Formatting
+        steps:
+        - task: TerraformTask@5
+          displayName: Terraform Initialization
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            backendServiceArm: '$(serviceConnection)'
+            backendAzureRmResourceGroupName: 'pipelinestg'
+            backendAzureRmStorageAccountName: 'stgnagpipeline'
+            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmKey: 'dev.terraform.tfstate'
+        - task: TerraformTask@5
+          displayName: Terraform Validation
+          inputs:
+            provider: 'azurerm'
+            command: 'validate'
+            workingDirectory: '$(terraformWorkingDirectory)'
+
+        - task: TerraformTask@5
+          displayName: Terraform Formatting
+          inputs:
+            provider: 'azurerm'
+            command: 'custom'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            outputTo: 'console'
+            customCommand: 'fmt'
+            environmentServiceNameAzureRM: '$(serviceConnection)'
+
+  - stage: TerraformPlan
+    displayName: Terraform Plan
+
+    dependsOn:
+      - TerraformInitAndValidateFmt
+    condition: succeeded()
+
+    isSkippable:  false
+    lockBehavior: sequential
+
+
+    pool:
+      name: $(poolName)
+    jobs:
+
+      - job: Job1_TerraformInitAndPlan
+        displayName: TerraformInit And Plan
+        steps:
+        - task: TerraformTask@5
+          displayName: Terraform Initialization
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            backendServiceArm: '$(serviceConnection)'
+            backendAzureRmResourceGroupName: 'pipelinestg'
+            backendAzureRmStorageAccountName: 'stgnagpipeline'
+            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmKey: 'dev.terraform.tfstate'
+        - task: TerraformTask@5
+          displayName: Terraform Plan
+          inputs:
+            provider: 'azurerm'
+            command: 'plan'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            environmentServiceNameAzureRM: '$(serviceConnection)'
+
+  - stage: ManualApproval
+    displayName: 'Manual Approval Before Main Merge'
+
+    dependsOn:
+    - TerraformPlan
+
+    condition: succeeded()
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    jobs:
+
+      - job: ManualApprovalJob
+        displayName: 'Manual Approval'
+        pool: server
+        timeoutInMinutes: 1440
+
+        steps:
+
+        - task: ManualValidation@1
+          displayName: 'Approve Feature Branch For Main Merge'
+          inputs:
+            notifyUsers: |
+              $(Build.RequestedForEmail)
+
+            instructions: |
+              Terraform validation and plan completed successfully.
+
+              Please review the Terraform Plan.
+
+              Approve this step only if the changes are ready
+              to be merged into the main branch.
+
+            onTimeout: 'reject'
