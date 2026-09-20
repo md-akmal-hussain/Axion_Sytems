@@ -140,9 +140,11 @@ stages:
         - task: ManualValidation@1
           inputs:
             notifyUsers: |
-              akmalh4921@gmal.com
+              akmalh4921@gmail.com
               md.akmal284@gmail.com
             approvers: 'akmalh4921@gmail.com'
+
+            allowApproversToApproveTheirOwnRuns: true
             instructions: |
               Terraform validation and plan have completed successfully.
               
