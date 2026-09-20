@@ -46,14 +46,6 @@ subnets = {
     address_prefixes    = ["10.0.4.0/24"]
 
   }
-
-    subnet5 = {
-    subnet_name         = "aks-subnet-axion-01"
-    resource_group_name = "rg-axion-systems-dev-01"
-    vnet_name           = "vnet-axion-systems-dev-01"
-    address_prefixes    = ["10.0.4.0/24"]
-
-  }
 }
 
 pips = {
