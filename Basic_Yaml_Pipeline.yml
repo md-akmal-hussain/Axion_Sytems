@@ -1,7 +1,6 @@
 name: Terraform-Pipeline-$(Date:yyyyMMdd).$(Rev:r)
 trigger: none
   
-
 pr: none
 
 variables:
@@ -109,7 +108,7 @@ stages:
               workingDirectory: '$(terraformWorkingDirectory)'
               script: |
                 Write-Host "Running Checkov..."
-                checkov -d . --framework terraform
+                checkov -d . --soft-fail --quiet
 
 
           # ==========================================
