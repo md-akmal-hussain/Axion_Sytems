@@ -1,1 +1,3 @@
-variable "pips" {}
+variable "pips" {
+    type = any
+}

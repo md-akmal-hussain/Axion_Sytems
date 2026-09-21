@@ -1,1 +1,3 @@
-variable "psql" {}
+variable "psql" {
+    type = any
+}

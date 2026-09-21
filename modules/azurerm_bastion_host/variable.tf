@@ -1,1 +1,3 @@
-variable "bsn" {}
+variable "bsn" {
+    type = any
+}

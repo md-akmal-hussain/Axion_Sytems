@@ -165,14 +165,11 @@ stages:
                 Write-Host "Running TruffleHog..."
                 trufflehog filesystem "$(Build.SourcesDirectory)"            
 
-
-
-
   - stage: TerraformPlan
     displayName: Terraform Plan
 
     dependsOn:
-      - TerraformInitAndValidateFmt
+      - SecurityScan
     condition: succeeded()
 
     isSkippable:  false
