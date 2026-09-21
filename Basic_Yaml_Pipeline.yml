@@ -20,8 +20,6 @@ stages:
   - stage: TerraformInitAndValidateFmt
     group: Terragorm
     displayName: Terraform Initialization And Validation
-
-    dependsOn: SecurityScan
     
 
     isSkippable: false
@@ -67,8 +65,8 @@ stages:
   - stage: SecurityScan
     displayName: Terraform Security Scan
 
-    # dependsOn:
-    #   - TerraformInitAndValidateFmt
+    dependsOn:
+      - TerraformInitAndValidateFmt
 
     condition: succeeded()
 
