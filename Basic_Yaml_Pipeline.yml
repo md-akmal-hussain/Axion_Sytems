@@ -62,6 +62,112 @@ stages:
             customCommand: 'fmt'
             environmentServiceNameAzureRM: '$(serviceConnection)'
 
+  - stage: SecurityScan
+    displayName: Terraform Security Scan
+
+    dependsOn:
+      - TerraformInitAndValidateFmt
+
+    condition: succeeded()
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
+    jobs:
+
+      - job: TerraformSecurityScan
+        displayName: Terraform Security Scanning
+
+        steps:
+
+          # ==========================================
+          # TFLINT
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: TFLint
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running TFLint..."
+                tflint --init
+                tflint
+
+
+          # ==========================================
+          # CHECKOV
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Checkov
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running Checkov..."
+                checkov -d . --framework terraform
+
+
+          # ==========================================
+          # TFSEC
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: tfsec
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running tfsec..."
+                tfsec .
+
+
+          # ==========================================
+          # TERRASCAN
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Terrascan
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running Terrascan..."
+                terrascan scan -t azure
+
+
+          # ==========================================
+          # GITLEAKS
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Gitleaks Secret Scan
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Running Gitleaks..."
+                gitleaks detect --source "$(Build.SourcesDirectory)" --no-banner
+
+
+          # ==========================================
+          # TRUFFLEHOG
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: TruffleHog Secret Scan
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Running TruffleHog..."
+                trufflehog filesystem "$(Build.SourcesDirectory)"            
+
+
+
+
   - stage: TerraformPlan
     displayName: Terraform Plan
 
