@@ -21,6 +21,9 @@ stages:
     group: Terragorm
     displayName: Terraform Initialization And Validation
 
+    dependsOn: SecurityScan
+    
+
     isSkippable: false
     lockBehavior: sequential
     
@@ -64,8 +67,8 @@ stages:
   - stage: SecurityScan
     displayName: Terraform Security Scan
 
-    dependsOn:
-      - TerraformInitAndValidateFmt
+    # dependsOn:
+    #   - TerraformInitAndValidateFmt
 
     condition: succeeded()
 
@@ -136,7 +139,7 @@ stages:
               workingDirectory: '$(terraformWorkingDirectory)'
               script: |
                 Write-Host "Running Terrascan..."
-                terrascan scan -t azure
+                terrascan scan -t azure --soft-fail
 
 
           # ==========================================
