@@ -1,8 +1,6 @@
 name: Terraform-Pipeline-$(Date:yyyyMMdd).$(Rev:r)
-trigger:
-  branches:
-    include:
-      - features/*
+trigger: none
+  
 
 pr: none
 

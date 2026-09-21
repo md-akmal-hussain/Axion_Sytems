@@ -32,7 +32,7 @@ subnets = {
   }
 
   subnet3 = {
-    subnet_name         = "postgresql-subnet-axion-01"
+    subnet_name         = "postgresql-subnet-axion-01"    ### postges subnet for flexible server
     resource_group_name = "rg-axion-systems-dev-01"
     vnet_name           = "vnet-axion-systems-dev-01"
     address_prefixes    = ["10.0.3.0/24"]
