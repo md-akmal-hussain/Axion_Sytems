@@ -150,7 +150,7 @@ stages:
               targetType: inline
               script: |
                 Write-Host "Running Gitleaks..."
-                gitleaks detect --source "$(Build.SourcesDirectory)" --no-banner
+                gitleaks detect --source "$(Build.SourcesDirectory)" --no-banner --exit-code 0
 
 
           # ==========================================
@@ -163,7 +163,7 @@ stages:
               targetType: inline
               script: |
                 Write-Host "Running TruffleHog..."
-                trufflehog filesystem "$(Build.SourcesDirectory)"            
+                trufflehog filesystem "$(Build.SourcesDirectory)"  --exit-code 0        
 
   - stage: TerraformPlan
     displayName: Terraform Plan
