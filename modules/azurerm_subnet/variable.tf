@@ -1,1 +1,3 @@
-variable "subnets" {}
+variable "subnets" {
+    type = any
+}

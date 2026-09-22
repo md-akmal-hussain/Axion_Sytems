@@ -1,7 +1,21 @@
-variable "rgs" {}
-variable "vnets" {}
-variable "subnets" {}
-variable "pips" {}
-variable "vms" {}
-variable "bsn" {}
-variable "psql" {}
+variable "rgs" {
+    type = any
+}
+variable "vnets" {
+    type = any
+}
+variable "subnets" {
+    type = any
+}
+variable "pips" {
+    type = any
+}
+variable "vms" {
+    type = any
+}
+variable "bsn" {
+    type = any
+}
+variable "psql" {
+    type = any
+}

@@ -30,21 +30,21 @@ module "public_ip" {
 
 }
 
-# module "bastion_host" {
-#   source = "../../modules/azurerm_bastion_host"
-#   bsn    = var.bsn
+module "bastion_host" {
+  source = "../../modules/azurerm_bastion_host"
+  bsn    = var.bsn
 
-#   depends_on = [module.subnet, module.public_ip]
+  depends_on = [module.subnet, module.public_ip]
 
-# }
+}
 
-# module "postgresql_flexible_server" {
-#   source = "../../modules/azurerm_postgresql_flexible_server"
-#   psql   = var.psql
+module "postgresql_flexible_server" {
+  source = "../../modules/azurerm_postgresql_flexible_server"
+  psql   = var.psql
 
-#   depends_on = [module.subnet]
+  depends_on = [module.subnet]
 
-# }
+}
 
 module "linux_virtual_machine" {
   source = "../../modules/azurerm_linux_virtual_machine"

@@ -1,1 +1,3 @@
-variable "vnets" {}
+variable "vnets" {
+    type = any
+}

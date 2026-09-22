@@ -1,7 +1,6 @@
 name: Terraform-Pipeline-$(Date:yyyyMMdd).$(Rev:r)
 trigger: none
   
-
 pr: none
 
 variables:
@@ -21,6 +20,7 @@ stages:
   - stage: TerraformInitAndValidateFmt
     group: Terragorm
     displayName: Terraform Initialization And Validation
+    
 
     isSkippable: false
     lockBehavior: sequential
@@ -62,11 +62,116 @@ stages:
             customCommand: 'fmt'
             environmentServiceNameAzureRM: '$(serviceConnection)'
 
+  - stage: SecurityScan
+    displayName: Security Scan
+
+    dependsOn:
+      - TerraformInitAndValidateFmt
+
+    condition: succeeded()
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
+    jobs:
+
+      - job: TerraformSecurityScan
+        displayName: Security Scanning
+
+        steps:
+
+          # ==========================================
+          # TFLINT
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: TFLint
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running TFLint..."
+                tflint --init
+                tflint
+
+
+          # ==========================================
+          # CHECKOV
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Checkov
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running Checkov..."
+                checkov -d . --soft-fail --quiet
+
+
+          # ==========================================
+          # TFSEC
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: tfsec
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running tfsec..."
+                tfsec .
+
+
+          # ==========================================
+          # TERRASCAN
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Terrascan
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running Terrascan..."
+                terrascan scan -t azure --soft-fail
+                exit 0
+
+
+          # ==========================================
+          # GITLEAKS
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Gitleaks Secret Scan
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Running Gitleaks..."
+                gitleaks detect --source "$(Build.SourcesDirectory)" --no-banner --exit-code 0
+
+
+          # ==========================================
+          # TRUFFLEHOG
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: TruffleHog Secret Scan
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Running TruffleHog..."
+                trufflehog filesystem "$(Build.SourcesDirectory)"
+                exit 0  
+
   - stage: TerraformPlan
     displayName: Terraform Plan
 
     dependsOn:
-      - TerraformInitAndValidateFmt
+      - SecurityScan
     condition: succeeded()
 
     isSkippable:  false
@@ -98,6 +203,34 @@ stages:
             command: 'plan'
             workingDirectory: '$(terraformWorkingDirectory)'
             environmentServiceNameAzureRM: '$(serviceConnection)'
+
+  - stage: Infracost
+    displayName: 'Infracost Cost Estimation'
+
+    dependsOn:
+      - TerraformPlan
+    condition: succeeded()
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
+    jobs:
+      - job: InfracostJob
+        displayName: 'Infracost Cost Estimation'
+        steps:
+
+          - task: PowerShell@2
+            displayName: 'Run Infracost'
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running Infracost..."
+                infracost breakdown --path . --format json --out-file infracost.json
+                infracost output --path infracost.json --format table
 
   - stage: ManualApproval
     displayName: 'Manual Approval Before Main Merge'
@@ -135,4 +268,41 @@ stages:
 
             onTimeout: 'reject'
 
-     
+  - stage: TerraformApply
+    displayName: 'Terraform Apply'
+
+    dependsOn:
+      - ManualApproval
+    condition: succeeded()
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
+    jobs:
+
+      - job: Job1_TerraformApply
+        displayName: Terraform Apply
+        steps:
+        - task: TerraformTask@5
+          displayName: Terraform Initialization
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            backendServiceArm: '$(serviceConnection)'
+            backendAzureRmResourceGroupName: 'pipelinestg'
+            backendAzureRmStorageAccountName: 'stgnagpipeline'
+            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmKey: 'dev.terraform.tfstate'        
+
+        - task: TerraformTask@5
+          displayName: Terraform Apply
+          inputs:
+            provider: 'azurerm'
+            commandOptions: '-auto-approve' 
+            command: 'apply'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            environmentServiceNameAzureRM: '$(serviceConnection)'     
