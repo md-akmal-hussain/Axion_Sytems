@@ -321,25 +321,9 @@ stages:
     displayName: 'Infracost Cost Estimation'
 
     dependsOn:
-      - ResumeDecision
-      - TerraformInitAndValidateFmt
-      - SecurityScan
       - TerraformPlan
 
-    condition: |
-      and(
-        in(dependencies.ResumeDecision.result, 'Succeeded'),
-        in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
-        in(dependencies.SecurityScan.result, 'Succeeded', 'Skipped'),
-        in(dependencies.TerraformPlan.result, 'Succeeded', 'Skipped'),
-        in(
-          dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
-          'TerraformInitAndValidateFmt',
-          'SecurityScan',
-          'TerraformPlan',
-          'Infracost'
-        )
-      )
+    condition: succeeded()
 
     isSkippable: false
     lockBehavior: sequential
@@ -348,26 +332,94 @@ stages:
       name: $(poolName)
 
     jobs:
+
       - job: InfracostJob
         displayName: 'Infracost Cost Estimation'
+
         steps:
+
+          # ==========================================
+          # DOWNLOAD TERRAFORM PLAN ARTIFACT
+          # ==========================================
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Terraform Plan'
+            inputs:
+              artifact: 'terraform-plan'
+              path: '$(Pipeline.Workspace)/terraform-plan'
+
+
+          # ==========================================
+          # VERIFY ARTIFACT
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: 'Verify Terraform Plan JSON'
+            inputs:
+              targetType: inline
+              script: |
+
+                Write-Host "Checking Terraform Plan JSON..."
+
+                $planFile = "$(Pipeline.Workspace)\terraform-plan\tfplan.json"
+
+                Write-Host "Expected file:"
+                Write-Host $planFile
+
+                if (Test-Path $planFile) {
+
+                    Write-Host "========================================="
+                    Write-Host "tfplan.json FOUND"
+                    Write-Host "========================================="
+
+                    Get-Item $planFile
+
+                }
+                else {
+
+                    Write-Error "tfplan.json NOT FOUND"
+                    exit 1
+                }
+
+
+          # ==========================================
+          # RUN INFRACOST
+          # ==========================================
 
           - task: PowerShell@2
             displayName: 'Run Infracost'
             inputs:
               targetType: inline
-              workingDirectory: '$(terraformWorkingDirectory)'
               script: |
+
                 Write-Host "Running Infracost..."
 
+                $planFile = "$(Pipeline.Workspace)\terraform-plan\tfplan.json"
+                $outputDir = "$(Pipeline.Workspace)\terraform-plan"
+
+                if (!(Test-Path $outputDir)) {
+                    New-Item -ItemType Directory -Path $outputDir -Force
+                }
+
                 infracost breakdown `
-                  --path "$(Pipeline.Workspace)/terraform-plan/tfplan.json" `
+                  --path "$planFile" `
                   --format json `
-                  --out-file "$(Pipeline.Workspace)/terraform-plan/infracost.json"
+                  --out-file "$outputDir\infracost.json"
+
+                if ($LASTEXITCODE -ne 0) {
+
+                    Write-Error "Infracost breakdown failed."
+                    exit $LASTEXITCODE
+                }
+
+                Write-Host "Infracost JSON created."
+
+                Get-Item "$outputDir\infracost.json"
 
                 infracost output `
-                  --path "$(Pipeline.Workspace)/terraform-plan/infracost.json" `
+                  --path "$outputDir\infracost.json" `
                   --format table
+
             env:
               INFRACOST_API_KEY: $(INFRACOST_API_KEY)  
                   
