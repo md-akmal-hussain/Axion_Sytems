@@ -47,195 +47,89 @@ stages:
       - job: DetectResumeStage
         displayName: Detect Previous Failed Stage
 
+        # IMPORTANT: This is a root job
+        dependsOn: []
+
         steps:
 
           - task: PowerShell@2
             name: SetResumeStage
-            displayName: 'Detect Resume Stage'
+            displayName: 'Detect Previous Failed Stage'
             env:
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
             inputs:
               targetType: inline
-
               script: |
 
                 $ErrorActionPreference = "Stop"
 
-                Write-Host "=========================================="
-                Write-Host "Checking Previous Pipeline Run"
-                Write-Host "=========================================="
+                Write-Host "Checking previous pipeline run..."
 
-                $organization = "$(System.CollectionUri)"
-                $project      = "$(System.TeamProject)"
-                $definitionId = "$(System.DefinitionId)"
-                $currentBuild = "$(Build.BuildId)"
-                $branch       = "$(Build.SourceBranch)"
-
-                Write-Host "Current Build : $currentBuild"
-                Write-Host "Branch        : $branch"
-                Write-Host "Definition ID : $definitionId"
-
-                $headers = @{
-                    Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-                }
-
-                $encodedBranch = [System.Uri]::EscapeDataString($branch)
-
-                $buildUrl = "${organization}${project}/_apis/build/builds?definitions=$definitionId&branchName=$encodedBranch&queryOrder=finishTimeDescending&`$top=10&api-version=7.1"
-
-                Write-Host "Getting previous builds..."
-
-                $builds = Invoke-RestMethod `
-                  -Uri $buildUrl `
-                  -Headers $headers `
-                  -Method Get
-
-                $previousBuild = $builds.value |
-                  Where-Object { $_.id -ne [int]$currentBuild } |
-                  Select-Object -First 1
-
+                # TEMPORARY TEST
+                # First make sure pipeline structure works.
                 $resumeStage = "TerraformInitAndValidateFmt"
 
-                if ($null -eq $previousBuild) {
-
-                    Write-Host "No previous build found."
-                    Write-Host "Starting from TerraformInitAndValidateFmt."
-
-                }
-                else {
-
-                    Write-Host "Previous Build ID : $($previousBuild.id)"
-                    Write-Host "Previous Build Result : $($previousBuild.result)"
-
-                    $timelineUrl = "${organization}${project}/_apis/build/builds/$($previousBuild.id)/timeline?api-version=7.1"
-
-                    Write-Host "Getting previous build timeline..."
-
-                    $timeline = Invoke-RestMethod `
-                      -Uri $timelineUrl `
-                      -Headers $headers `
-                      -Method Get
-
-                    $stageRecords = $timeline.records |
-                      Where-Object {
-                        $_.type -eq "Stage"
-                      }
-
-                    foreach ($stage in $stageRecords) {
-
-                        Write-Host "Stage: $($stage.name) | Result: $($stage.result)"
-                    }
-
-                    $stageOrder = @(
-                      "TerraformInitAndValidateFmt",
-                      "SecurityScan",
-                      "TerraformPlan",
-                      "Infracost",
-                      "ManualApproval",
-                      "TerraformApply"
-                    )
-
-                    foreach ($stageName in $stageOrder) {
-
-                        $record = $stageRecords |
-                          Where-Object { $_.name -eq $stageName } |
-                          Select-Object -First 1
-
-                        if ($null -eq $record) {
-
-                            Write-Host "Stage '$stageName' was not found."
-                            $resumeStage = $stageName
-                            break
-                        }
-
-                        if ($record.result -in @("failed","canceled","abandoned")) {
-
-                            $resumeStage = $stageName
-
-                            Write-Host ""
-                            Write-Host "=========================================="
-                            Write-Host "FAILED STAGE FOUND"
-                            Write-Host "Resume From : $resumeStage"
-                            Write-Host "=========================================="
-
-                            break
-                        }
-                    }
-
-                    if ($previousBuild.result -eq "succeeded") {
-
-                        Write-Host ""
-                        Write-Host "Previous pipeline succeeded."
-                        Write-Host "Starting new run from beginning."
-
-                        $resumeStage = "TerraformInitAndValidateFmt"
-                    }
-                }
-
-                Write-Host ""
-                Write-Host "FINAL RESUME STAGE = $resumeStage"
+                Write-Host "Resume Stage = $resumeStage"
 
                 Write-Host "##vso[task.setvariable variable=ResumeStage;isOutput=true]$resumeStage"
 
   - stage: TerraformInitAndValidateFmt
-    group: Terragorm
     displayName: Terraform Initialization And Validation
-    
+
+    dependsOn:
+      - ResumeDecision
+
+    condition: |
+      and(
+        succeeded(),
+        eq(
+          dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
+          'TerraformInitAndValidateFmt'
+        )
+      )
 
     isSkippable: false
     lockBehavior: sequential
-    
 
     pool:
       name: $(poolName)
-       
+
     jobs:
 
       - job: Job1_TerraformInitAndValidateAndFormating
         displayName: Terraform Initialization And Validation And Formatting
 
-        dependsOn:
-          - ResumeDecision
-
-        condition: |
-          and(
-            succeeded(),
-            eq(
-              dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
-              'TerraformInitAndValidateFmt'
-            )
-          )
-
         steps:
-        - task: TerraformTask@5
-          displayName: Terraform Initialization
-          inputs:
-            provider: 'azurerm'
-            command: 'init'
-            workingDirectory: '$(terraformWorkingDirectory)'
-            backendServiceArm: '$(serviceConnection)'
-            backendAzureRmResourceGroupName: '$(ResourceGroupName)'
-            backendAzureRmStorageAccountName: '$(StorageAccountName)'
-            backendAzureRmContainerName: '$(ContainerName)'
-            backendAzureRmKey: 'dev.terraform.tfstate'
 
-        - task: TerraformTask@5
-          displayName: Terraform Validation
-          inputs:
-            provider: 'azurerm'
-            command: 'validate'
-            workingDirectory: '$(terraformWorkingDirectory)'
+          - task: TerraformTask@5
+            displayName: Terraform Initialization
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              backendServiceArm: '$(serviceConnection)'
+              backendAzureRmResourceGroupName: '$(ResourceGroupName)'
+              backendAzureRmStorageAccountName: '$(StorageAccountName)'
+              backendAzureRmContainerName: '$(ContainerName)'
+              backendAzureRmKey: 'dev.terraform.tfstate'
 
-        - task: TerraformTask@5
-          displayName: Terraform Formatting
-          inputs:
-            provider: 'azurerm'
-            command: 'custom'
-            workingDirectory: '$(terraformWorkingDirectory)'
-            outputTo: 'console'
-            customCommand: 'fmt'
-            environmentServiceNameAzureRM: '$(serviceConnection)'
+          - task: TerraformTask@5
+            displayName: Terraform Validation
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+              workingDirectory: '$(terraformWorkingDirectory)'
+
+          - task: TerraformTask@5
+            displayName: Terraform Formatting
+            inputs:
+              provider: 'azurerm'
+              command: 'custom'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              outputTo: 'console'
+              customCommand: 'fmt'
+              environmentServiceNameAzureRM: '$(serviceConnection)'
 
   - stage: SecurityScan
     displayName: Security Scan
