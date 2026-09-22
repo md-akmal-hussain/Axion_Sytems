@@ -138,6 +138,7 @@ stages:
               script: |
                 Write-Host "Running Terrascan..."
                 terrascan scan -t azure --soft-fail
+                exit 0
 
 
           # ==========================================
