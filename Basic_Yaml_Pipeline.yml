@@ -207,6 +207,19 @@ stages:
             environmentServiceNameAzureRM: '$(serviceConnection)'
             commandOptions: '-out=tfplan'
 
+        - task: PowerShell@2
+          displayName: Create Terraform Plan JSON
+          inputs:
+            targetType: inline
+            workingDirectory: '$(terraformWorkingDirectory)'
+            script: |
+              Write-Host "Converting Terraform plan to JSON..."
+
+              terraform show -json tfplan > tfplan.json
+
+              Write-Host "Terraform Plan JSON created:"
+              Get-Item tfplan.json  
+              
   - stage: Infracost
     displayName: 'Infracost Cost Estimation'
 
@@ -233,11 +246,17 @@ stages:
               script: |
                 Write-Host "Running Infracost..."
 
-                $env:INFRACOST_API_KEY = "$(INFRACOST_API_KEY)"
+                infracost breakdown `
+                  --path "$(Pipeline.Workspace)/terraform-plan/tfplan.json" `
+                  --format json `
+                  --out-file "$(Pipeline.Workspace)/terraform-plan/infracost.json"
 
-                infracost breakdown --path . --format json --out-file infracost.json
-                infracost output --path infracost.json --format table
-
+                infracost output `
+                  --path "$(Pipeline.Workspace)/terraform-plan/infracost.json" `
+                  --format table
+            env:
+              INFRACOST_API_KEY: $(INFRACOST_API_KEY)
+                  
   - stage: ManualApproval
     displayName: 'Manual Approval Before Main Merge'
 
