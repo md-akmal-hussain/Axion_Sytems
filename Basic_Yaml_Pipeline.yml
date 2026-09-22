@@ -63,7 +63,7 @@ stages:
             environmentServiceNameAzureRM: '$(serviceConnection)'
 
   - stage: SecurityScan
-    displayName: Terraform Security Scan
+    displayName: Security Scan
 
     dependsOn:
       - TerraformInitAndValidateFmt
@@ -79,7 +79,7 @@ stages:
     jobs:
 
       - job: TerraformSecurityScan
-        displayName: Terraform Security Scanning
+        displayName: Security Scanning
 
         steps:
 
@@ -287,9 +287,22 @@ stages:
         displayName: Terraform Apply
         steps:
         - task: TerraformTask@5
+          displayName: Terraform Initialization
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            backendServiceArm: '$(serviceConnection)'
+            backendAzureRmResourceGroupName: 'pipelinestg'
+            backendAzureRmStorageAccountName: 'stgnagpipeline'
+            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmKey: 'dev.terraform.tfstate'        
+
+        - task: TerraformTask@5
           displayName: Terraform Apply
           inputs:
             provider: 'azurerm'
+            commandOptions: '-auto-approve' 
             command: 'apply'
             workingDirectory: '$(terraformWorkingDirectory)'
             environmentServiceNameAzureRM: '$(serviceConnection)'     
