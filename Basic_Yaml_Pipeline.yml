@@ -262,7 +262,7 @@ stages:
       - SecurityScan
 
     condition: |
-    and(
+      and(
         in(dependencies.ResumeDecision.result, 'Succeeded'),
         in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
         in(dependencies.SecurityScan.result, 'Succeeded', 'Skipped'),
