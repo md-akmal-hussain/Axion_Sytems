@@ -71,6 +71,16 @@ stages:
 
                 Write-Host "##vso[task.setvariable variable=ResumeStage;isOutput=true]$resumeStage"
 
+                Write-Host "============================================"
+                Write-Host "RESUME DECISION RESULT"
+                Write-Host "============================================"
+                Write-Host "Previous Build ID : $($previousBuild.id)"
+                Write-Host "Previous Build Result : $($previousBuild.result)"
+                Write-Host "FINAL ResumeStage : [$resumeStage]"
+                Write-Host "============================================"
+
+                Write-Host "##vso[task.setvariable variable=ResumeStage;isOutput=true]$resumeStage"
+
   - stage: TerraformInitAndValidateFmt
     displayName: Terraform Initialization And Validation
 
@@ -252,7 +262,7 @@ stages:
       - SecurityScan
 
     condition: |
-      and(
+    and(
         in(dependencies.ResumeDecision.result, 'Succeeded'),
         in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
         in(dependencies.SecurityScan.result, 'Succeeded', 'Skipped'),
@@ -470,24 +480,26 @@ stages:
       - Infracost
       - ManualApproval
 
-    condition: |
-      and(
-        in(dependencies.ResumeDecision.result, 'Succeeded'),
-        in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
-        in(dependencies.SecurityScan.result, 'Succeeded', 'Skipped'),
-        in(dependencies.TerraformPlan.result, 'Succeeded', 'Skipped'),
-        in(dependencies.Infracost.result, 'Succeeded', 'Skipped'),
-        in(dependencies.ManualApproval.result, 'Succeeded', 'Skipped'),
-        in(
-          dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
-          'TerraformInitAndValidateFmt',
-          'SecurityScan',
-          'TerraformPlan',
-          'Infracost',
-          'ManualApproval',
-          'TerraformApply'
-        )
-      )
+        
+    condition: false()
+    # condition: |
+    #   and(
+    #     in(dependencies.ResumeDecision.result, 'Succeeded'),
+    #     in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.SecurityScan.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.TerraformPlan.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.Infracost.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.ManualApproval.result, 'Succeeded', 'Skipped'),
+    #     in(
+    #       dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
+    #       'TerraformInitAndValidateFmt',
+    #       'SecurityScan',
+    #       'TerraformPlan',
+    #       'Infracost',
+    #       'ManualApproval',
+    #       'TerraformApply'
+    #     )
+    #   )
 
     isSkippable: false
     lockBehavior: sequential
