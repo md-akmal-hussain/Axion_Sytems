@@ -255,7 +255,7 @@ stages:
                   --path "$(Pipeline.Workspace)/terraform-plan/infracost.json" `
                   --format table
             env:
-              INFRACOST_API_KEY: $(INFRACOST_API_KEY)
+              INFRACOST_API_KEY: $(INFRACOST_API_KEY)  
                   
   - stage: ManualApproval
     displayName: 'Manual Approval Before Main Merge'
