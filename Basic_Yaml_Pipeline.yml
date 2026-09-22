@@ -229,8 +229,12 @@ stages:
               workingDirectory: '$(terraformWorkingDirectory)'
               script: |
                 Write-Host "Running Infracost..."
+
+                $env:INFRACOST_API_KEY = "$(INFRACOST_API_KEY)"
+
                 infracost breakdown --path . --format json --out-file infracost.json
                 infracost output --path infracost.json --format table
+
 
   - stage: ManualApproval
     displayName: 'Manual Approval Before Main Merge'
