@@ -7,6 +7,14 @@ terraform {
 
     }
   }
+backend "azurerm" {
+  resource_group_name  = "pipelinestg"
+  storage_account_name = "stgnagpipeline"
+  container_name       = "pipelinecontainer"
+  key                  = "dev.terraform.tfstate"
+  
+}
+
 }
 
 provider "azurerm" {

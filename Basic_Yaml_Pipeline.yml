@@ -185,6 +185,7 @@ stages:
       - job: Job1_TerraformInitAndPlan
         displayName: TerraformInit And Plan
         steps:
+
         - task: TerraformTask@5
           displayName: Terraform Initialization
           inputs:
@@ -196,6 +197,7 @@ stages:
             backendAzureRmStorageAccountName: 'stgnagpipeline'
             backendAzureRmContainerName: 'pipelinecontainer'
             backendAzureRmKey: 'dev.terraform.tfstate'
+
         - task: TerraformTask@5
           displayName: Terraform Plan
           inputs:
@@ -203,6 +205,7 @@ stages:
             command: 'plan'
             workingDirectory: '$(terraformWorkingDirectory)'
             environmentServiceNameAzureRM: '$(serviceConnection)'
+            commandOptions: '-out=tfplan'
 
   - stage: Infracost
     displayName: 'Infracost Cost Estimation'
@@ -234,7 +237,6 @@ stages:
 
                 infracost breakdown --path . --format json --out-file infracost.json
                 infracost output --path infracost.json --format table
-
 
   - stage: ManualApproval
     displayName: 'Manual Approval Before Main Merge'
