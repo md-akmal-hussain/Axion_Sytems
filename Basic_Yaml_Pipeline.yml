@@ -13,7 +13,19 @@ variables:
     value: 'Yaml_Svc'  
 
   - name: poolName
-    value: 'Yaml_Pool'  
+    value: 'Yaml_Pool' 
+
+  - name: INFRACOST_API_KEY
+    value: '$(INFRACOST_API_KEY)'
+
+  - name: ResourceGroupName
+    value: 'pipelinestg'
+
+  - name: StorageAccountName
+    value: 'stgnagpipeline'
+
+  - name: ContainerName
+    value: 'yaml-container'         
 
 stages:
 
@@ -41,10 +53,11 @@ stages:
             command: 'init'
             workingDirectory: '$(terraformWorkingDirectory)'
             backendServiceArm: '$(serviceConnection)'
-            backendAzureRmResourceGroupName: 'pipelinestg'
-            backendAzureRmStorageAccountName: 'stgnagpipeline'
-            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmResourceGroupName: '$(ResourceGroupName)'
+            backendAzureRmStorageAccountName: '$(StorageAccountName)'
+            backendAzureRmContainerName: '$(ContainerName)'
             backendAzureRmKey: 'dev.terraform.tfstate'
+
         - task: TerraformTask@5
           displayName: Terraform Validation
           inputs:
@@ -193,9 +206,9 @@ stages:
             command: 'init'
             workingDirectory: '$(terraformWorkingDirectory)'
             backendServiceArm: '$(serviceConnection)'
-            backendAzureRmResourceGroupName: 'pipelinestg'
-            backendAzureRmStorageAccountName: 'stgnagpipeline'
-            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmResourceGroupName: '$(ResourceGroupName)'
+            backendAzureRmStorageAccountName: '$(StorageAccountName)'
+            backendAzureRmContainerName: '$(ContainerName)'
             backendAzureRmKey: 'dev.terraform.tfstate'
 
         - task: TerraformTask@5
@@ -318,9 +331,9 @@ stages:
             command: 'init'
             workingDirectory: '$(terraformWorkingDirectory)'
             backendServiceArm: '$(serviceConnection)'
-            backendAzureRmResourceGroupName: 'pipelinestg'
-            backendAzureRmStorageAccountName: 'stgnagpipeline'
-            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmResourceGroupName: '$(ResourceGroupName)'
+            backendAzureRmStorageAccountName: '$(StorageAccountName)'
+            backendAzureRmContainerName: '$(ContainerName)'
             backendAzureRmKey: 'dev.terraform.tfstate'        
 
         - task: TerraformTask@5
