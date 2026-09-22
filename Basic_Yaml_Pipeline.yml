@@ -16,9 +16,6 @@ variables:
   - name: poolName
     value: 'Yaml_Pool' 
 
-  - name: INFRACOST_API_KEY
-    value: '$(INFRACOST_API_KEY)'
-
   - name: ResourceGroupName
     value: 'pipelinestg'
 
@@ -311,7 +308,14 @@ stages:
               terraform show -json tfplan > tfplan.json
 
               Write-Host "Terraform Plan JSON created:"
-              Get-Item tfplan.json  
+              Get-Item tfplan.json 
+
+        - task: PublishPipelineArtifact@1
+          displayName: Publish Terraform Plan JSON
+          inputs:
+            targetPath: '$(terraformWorkingDirectory)/tfplan.json'
+            artifact: 'terraform-plan'
+            publishLocation: 'pipeline'      
               
   - stage: Infracost
     displayName: 'Infracost Cost Estimation'
