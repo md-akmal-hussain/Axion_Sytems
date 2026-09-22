@@ -164,7 +164,8 @@ stages:
               targetType: inline
               script: |
                 Write-Host "Running TruffleHog..."
-                trufflehog filesystem "$(Build.SourcesDirectory)"  --exit-code 0        
+                trufflehog filesystem "$(Build.SourcesDirectory)"
+                exit 0  
 
   - stage: TerraformPlan
     displayName: Terraform Plan
