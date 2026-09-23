@@ -1,9 +1,7 @@
-name: Terraform-Pipeline-$(Date:yyyyMMdd).$(Rev:r)
-trigger:
-  branches:
-    include:
-      - features/*
+name: Terraform-Pipeline-$(Date:yyyyMMdd)-$(Rev:r)
 
+trigger: none
+  
 pr: none
 
 variables:
@@ -16,60 +14,265 @@ variables:
     value: 'Yaml_Svc'  
 
   - name: poolName
-    value: 'Yaml_Pool'  
+    value: 'Yaml_Pool' 
+
+  - name: ResourceGroupName
+    value: 'pipelinestg'
+
+  - name: StorageAccountName
+    value: 'stgnagpipeline'
+
+  - name: ContainerName
+    value: 'yaml-container' 
+
+  - name: ResumeFrom
+    value: 'TerraformInitAndValidateFmt'
 
 stages:
 
-  - stage: TerraformInitAndValidateFmt
-    group: Terragorm
-    displayName: Terraform Initialization And Validation
+  - stage: ResumeDecision
+    displayName: 'Resume Decision'
 
     isSkippable: false
     lockBehavior: sequential
-    
 
     pool:
       name: $(poolName)
-       
+
+    jobs:
+
+      - job: DetectResumeStage
+        displayName: Detect Previous Failed Stage
+
+        # IMPORTANT: This is a root job
+        dependsOn: []
+
+        steps:
+
+          - task: PowerShell@2
+            name: SetResumeStage
+            displayName: 'Detect Previous Failed Stage'
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+            inputs:
+              targetType: inline
+              script: |
+
+                $ErrorActionPreference = "Stop"
+
+                Write-Host "Checking previous pipeline run..."
+
+                # TEMPORARY TEST
+                # First make sure pipeline structure works.
+                $resumeStage = "TerraformInitAndValidateFmt"
+
+                Write-Host "Resume Stage = $resumeStage"
+
+                Write-Host "##vso[task.setvariable variable=ResumeStage;isOutput=true]$resumeStage"
+
+                Write-Host "============================================"
+                Write-Host "RESUME DECISION RESULT"
+                Write-Host "============================================"
+                Write-Host "Previous Build ID : $($previousBuild.id)"
+                Write-Host "Previous Build Result : $($previousBuild.result)"
+                Write-Host "FINAL ResumeStage : [$resumeStage]"
+                Write-Host "============================================"
+
+                Write-Host "##vso[task.setvariable variable=ResumeStage;isOutput=true]$resumeStage"
+
+  - stage: TerraformInitAndValidateFmt
+    displayName: Terraform Initialization And Validation
+
+    dependsOn:
+      - ResumeDecision
+
+    condition: |
+      and(
+        succeeded(),
+        eq(
+          dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
+          'TerraformInitAndValidateFmt'
+        )
+      )
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
     jobs:
 
       - job: Job1_TerraformInitAndValidateAndFormating
         displayName: Terraform Initialization And Validation And Formatting
-        steps:
-        - task: TerraformTask@5
-          displayName: Terraform Initialization
-          inputs:
-            provider: 'azurerm'
-            command: 'init'
-            workingDirectory: '$(terraformWorkingDirectory)'
-            backendServiceArm: '$(serviceConnection)'
-            backendAzureRmResourceGroupName: 'pipelinestg'
-            backendAzureRmStorageAccountName: 'stgnagpipeline'
-            backendAzureRmContainerName: 'pipelinecontainer'
-            backendAzureRmKey: 'dev.terraform.tfstate'
-        - task: TerraformTask@5
-          displayName: Terraform Validation
-          inputs:
-            provider: 'azurerm'
-            command: 'validate'
-            workingDirectory: '$(terraformWorkingDirectory)'
 
-        - task: TerraformTask@5
-          displayName: Terraform Formatting
-          inputs:
-            provider: 'azurerm'
-            command: 'custom'
-            workingDirectory: '$(terraformWorkingDirectory)'
-            outputTo: 'console'
-            customCommand: 'fmt'
-            environmentServiceNameAzureRM: '$(serviceConnection)'
+        steps:
+
+          - task: TerraformTask@5
+            displayName: Terraform Initialization
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              backendServiceArm: '$(serviceConnection)'
+              backendAzureRmResourceGroupName: '$(ResourceGroupName)'
+              backendAzureRmStorageAccountName: '$(StorageAccountName)'
+              backendAzureRmContainerName: '$(ContainerName)'
+              backendAzureRmKey: 'dev.terraform.tfstate'
+
+          - task: TerraformTask@5
+            displayName: Terraform Validation
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+              workingDirectory: '$(terraformWorkingDirectory)'
+
+          - task: TerraformTask@5
+            displayName: Terraform Formatting
+            inputs:
+              provider: 'azurerm'
+              command: 'custom'
+              workingDirectory: '$(terraformWorkingDirectory)'
+              outputTo: 'console'
+              customCommand: 'fmt'
+              environmentServiceNameAzureRM: '$(serviceConnection)'
+
+  - stage: SecurityScan
+    displayName: Security Scan
+
+    dependsOn:
+      - ResumeDecision
+      - TerraformInitAndValidateFmt
+
+    condition: |
+       and(
+          in(dependencies.ResumeDecision.result, 'Succeeded'),
+          in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
+          in(
+            dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
+            'TerraformInitAndValidateFmt',
+            'SecurityScan'
+          )
+        )
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
+    jobs:
+
+      - job: TerraformSecurityScan
+        displayName: Security Scanning
+
+        steps:
+
+          # ==========================================
+          # TFLINT
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: TFLint
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running TFLint..."
+                tflint --init
+                tflint
+
+
+          # ==========================================
+          # CHECKOV
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Checkov
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running Checkov..."
+                checkov -d . --soft-fail --quiet
+
+
+          # ==========================================
+          # TFSEC
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: tfsec
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running tfsec..."
+                tfsec .
+
+
+          # ==========================================
+          # TERRASCAN
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Terrascan
+            inputs:
+              targetType: inline
+              workingDirectory: '$(terraformWorkingDirectory)'
+              script: |
+                Write-Host "Running Terrascan..."
+                terrascan scan -t azure --soft-fail
+                exit 0
+
+
+          # ==========================================
+          # GITLEAKS
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: Gitleaks Secret Scan
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Running Gitleaks..."
+                gitleaks detect --source "$(Build.SourcesDirectory)" --no-banner --exit-code 0
+
+
+          # ==========================================
+          # TRUFFLEHOG
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: TruffleHog Secret Scan
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Running TruffleHog..."
+                trufflehog filesystem "$(Build.SourcesDirectory)"
+                exit 0  
 
   - stage: TerraformPlan
     displayName: Terraform Plan
 
     dependsOn:
+      - ResumeDecision
       - TerraformInitAndValidateFmt
-    condition: succeeded()
+      - SecurityScan
+
+    condition: |
+      and(
+        in(dependencies.ResumeDecision.result, 'Succeeded'),
+        in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
+        in(dependencies.SecurityScan.result, 'Succeeded', 'Skipped'),
+        in(
+          dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
+          'TerraformInitAndValidateFmt',
+          'SecurityScan',
+          'TerraformPlan'
+        )
+      )
 
     isSkippable:  false
     lockBehavior: sequential
@@ -82,6 +285,7 @@ stages:
       - job: Job1_TerraformInitAndPlan
         displayName: TerraformInit And Plan
         steps:
+
         - task: TerraformTask@5
           displayName: Terraform Initialization
           inputs:
@@ -89,10 +293,11 @@ stages:
             command: 'init'
             workingDirectory: '$(terraformWorkingDirectory)'
             backendServiceArm: '$(serviceConnection)'
-            backendAzureRmResourceGroupName: 'pipelinestg'
-            backendAzureRmStorageAccountName: 'stgnagpipeline'
-            backendAzureRmContainerName: 'pipelinecontainer'
+            backendAzureRmResourceGroupName: '$(ResourceGroupName)'
+            backendAzureRmStorageAccountName: '$(StorageAccountName)'
+            backendAzureRmContainerName: '$(ContainerName)'
             backendAzureRmKey: 'dev.terraform.tfstate'
+
         - task: TerraformTask@5
           displayName: Terraform Plan
           inputs:
@@ -100,12 +305,139 @@ stages:
             command: 'plan'
             workingDirectory: '$(terraformWorkingDirectory)'
             environmentServiceNameAzureRM: '$(serviceConnection)'
+            commandOptions: '-out=tfplan'
 
+        - task: PowerShell@2
+          displayName: Create Terraform Plan JSON
+          inputs:
+            targetType: inline
+            workingDirectory: '$(terraformWorkingDirectory)'
+            script: |
+              Write-Host "Converting Terraform plan to JSON..."
+
+              terraform show -json tfplan > tfplan.json
+
+              Write-Host "Terraform Plan JSON created:"
+              Get-Item tfplan.json 
+
+        - task: PublishPipelineArtifact@1
+          displayName: Publish Terraform Plan JSON
+          inputs:
+            targetPath: '$(terraformWorkingDirectory)/tfplan.json'
+            artifact: 'terraform-plan'
+            publishLocation: 'pipeline'      
+              
+  - stage: Infracost
+    displayName: 'Infracost Cost Estimation'
+
+    dependsOn:
+      - TerraformPlan
+
+    condition: succeeded()
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
+    jobs:
+
+      - job: InfracostJob
+        displayName: 'Infracost Cost Estimation'
+
+        steps:
+
+          # ==========================================
+          # DOWNLOAD TERRAFORM PLAN ARTIFACT
+          # ==========================================
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Terraform Plan'
+            inputs:
+              artifact: 'terraform-plan'
+              path: '$(Pipeline.Workspace)/terraform-plan'
+
+
+          # ==========================================
+          # VERIFY ARTIFACT
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: 'Verify Terraform Plan JSON'
+            inputs:
+              targetType: inline
+              script: |
+
+                Write-Host "Checking Terraform Plan JSON..."
+
+                $planFile = "$(Pipeline.Workspace)\terraform-plan\tfplan.json"
+
+                Write-Host "Expected file:"
+                Write-Host $planFile
+
+                if (Test-Path $planFile) {
+
+                    Write-Host "========================================="
+                    Write-Host "tfplan.json FOUND"
+                    Write-Host "========================================="
+
+                    Get-Item $planFile
+
+                }
+                else {
+
+                    Write-Error "tfplan.json NOT FOUND"
+                    exit 1
+                }
+
+
+          # ==========================================
+          # RUN INFRACOST
+          # ==========================================
+
+          - task: PowerShell@2
+            displayName: 'Run Infracost'
+            inputs:
+              targetType: inline
+              script: |
+
+                Write-Host "Running Infracost..."
+
+                $planFile = "$(Pipeline.Workspace)\terraform-plan\tfplan.json"
+                $outputDir = "$(Pipeline.Workspace)\terraform-plan"
+
+                if (!(Test-Path $outputDir)) {
+                    New-Item -ItemType Directory -Path $outputDir -Force
+                }
+
+                infracost breakdown `
+                  --path "$planFile" `
+                  --format json `
+                  --out-file "$outputDir\infracost.json"
+
+                if ($LASTEXITCODE -ne 0) {
+
+                    Write-Error "Infracost breakdown failed."
+                    exit $LASTEXITCODE
+                }
+
+                Write-Host "Infracost JSON created."
+
+                Get-Item "$outputDir\infracost.json"
+
+                infracost output `
+                  --path "$outputDir\infracost.json" `
+                  --format table
+
+            env:
+              INFRACOST_API_KEY: $(INFRACOST_API_KEY)  
+                  
   - stage: ManualApproval
     displayName: 'Manual Approval Before Main Merge'
 
     dependsOn:
-    - TerraformPlan
+    - Infracost
 
     condition: succeeded()
 
@@ -137,4 +469,66 @@ stages:
 
             onTimeout: 'reject'
 
-     
+  - stage: TerraformApply
+    displayName: 'Terraform Apply'
+
+    dependsOn:
+      - ResumeDecision
+      - TerraformInitAndValidateFmt
+      - SecurityScan
+      - TerraformPlan
+      - Infracost
+      - ManualApproval
+
+        
+    condition: eq(1, 2)   ### skip apply statge
+    # condition: |
+    #   and(
+    #     in(dependencies.ResumeDecision.result, 'Succeeded'),
+    #     in(dependencies.TerraformInitAndValidateFmt.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.SecurityScan.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.TerraformPlan.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.Infracost.result, 'Succeeded', 'Skipped'),
+    #     in(dependencies.ManualApproval.result, 'Succeeded', 'Skipped'),
+    #     in(
+    #       dependencies.ResumeDecision.outputs['DetectResumeStage.SetResumeStage.ResumeStage'],
+    #       'TerraformInitAndValidateFmt',
+    #       'SecurityScan',
+    #       'TerraformPlan',
+    #       'Infracost',
+    #       'ManualApproval',
+    #       'TerraformApply'
+    #     )
+    #   )
+
+    isSkippable: false
+    lockBehavior: sequential
+
+    pool:
+      name: $(poolName)
+
+    jobs:
+
+      - job: Job1_TerraformApply
+        displayName: Terraform Apply
+        steps:
+        - task: TerraformTask@5
+          displayName: Terraform Initialization
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            backendServiceArm: '$(serviceConnection)'
+            backendAzureRmResourceGroupName: '$(ResourceGroupName)'
+            backendAzureRmStorageAccountName: '$(StorageAccountName)'
+            backendAzureRmContainerName: '$(ContainerName)'
+            backendAzureRmKey: 'dev.terraform.tfstate'        
+
+        - task: TerraformTask@5
+          displayName: Terraform Apply
+          inputs:
+            provider: 'azurerm'
+            commandOptions: '-auto-approve' 
+            command: 'apply'
+            workingDirectory: '$(terraformWorkingDirectory)'
+            environmentServiceNameAzureRM: '$(serviceConnection)'     
