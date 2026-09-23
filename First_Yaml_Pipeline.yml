@@ -3,7 +3,7 @@ name: Terraform-Pipeline-$(Date:yyyyMMdd)-$(Rev:r)
 trigger:
   branches:
     include:
-      - feature/*
+      - features/*
   
 pr: none
 
