@@ -187,19 +187,25 @@ stages:
 
     dependsOn:
       - SecurityScan
+
     condition: succeeded()
 
-    isSkippable:  false
+    isSkippable: false
     lockBehavior: sequential
-
 
     pool:
       name: $(poolName)
+
     jobs:
 
-      - job: Job1_TerraformInitAndPlan
-        displayName: TerraformInit And Plan
-        steps:
+    - job: Job1_TerraformInitAndPlan
+      displayName: TerraformInit And Plan
+
+      steps:
+
+        # ====================================================
+        # Terraform Init
+        # ====================================================
 
         - task: TerraformTask@5
           displayName: Terraform Initialization
@@ -213,6 +219,11 @@ stages:
             backendAzureRmContainerName: '$(ContainerName)'
             backendAzureRmKey: 'dev.terraform.tfstate'
 
+
+        # ====================================================
+        # Terraform Plan
+        # ====================================================
+
         - task: TerraformTask@5
           displayName: Terraform Plan
           inputs:
@@ -222,6 +233,45 @@ stages:
             environmentServiceNameAzureRM: '$(serviceConnection)'
             commandOptions: '-out=tfplan'
 
+
+        # ====================================================
+        # Verify tfplan
+        # ====================================================
+
+        - task: PowerShell@2
+          displayName: Verify Terraform Plan
+          inputs:
+            targetType: inline
+            workingDirectory: '$(terraformWorkingDirectory)'
+            script: |
+              Write-Host "Checking Terraform plan file..."
+
+              $planFile = "$(terraformWorkingDirectory)\tfplan"
+
+              Write-Host "Expected plan file:"
+              Write-Host $planFile
+
+              if (Test-Path $planFile) {
+
+                  Write-Host "========================================="
+                  Write-Host "tfplan FOUND"
+                  Write-Host "========================================="
+
+                  Get-Item $planFile
+
+              }
+              else {
+
+                  Write-Error "tfplan NOT FOUND"
+                  exit 1
+
+              }
+
+
+        # ====================================================
+        # Create Terraform Plan JSON
+        # ====================================================
+
         - task: PowerShell@2
           displayName: Create Terraform Plan JSON
           inputs:
@@ -230,17 +280,56 @@ stages:
             script: |
               Write-Host "Converting Terraform plan to JSON..."
 
-              terraform show -json tfplan > tfplan.json
+              $planFile = "$(terraformWorkingDirectory)\tfplan"
+              $jsonFile = "$(terraformWorkingDirectory)\tfplan.json"
 
-              Write-Host "Terraform Plan JSON created:"
-              Get-Item tfplan.json 
+              if (!(Test-Path $planFile)) {
+
+                  Write-Error "tfplan file not found."
+                  exit 1
+
+              }
+
+              # Generate Terraform Plan JSON
+              cmd /c "terraform show -json tfplan > tfplan.json"
+
+              if (!(Test-Path $jsonFile)) {
+
+                  Write-Error "tfplan.json was not created."
+                  exit 1
+
+              }
+
+              $file = Get-Item $jsonFile
+
+              Write-Host "========================================="
+              Write-Host "Terraform Plan JSON Created"
+              Write-Host "========================================="
+
+              Write-Host "File:"
+              Write-Host $file.FullName
+
+              Write-Host "Size:"
+              Write-Host "$($file.Length) bytes"
+
+              if ($file.Length -eq 0) {
+
+                  Write-Error "tfplan.json is EMPTY."
+                  exit 1
+
+              }
+
+
+        # ====================================================
+        # Publish Terraform Plan JSON
+        # ====================================================
 
         - task: PublishPipelineArtifact@1
           displayName: Publish Terraform Plan JSON
           inputs:
             targetPath: '$(terraformWorkingDirectory)/tfplan.json'
             artifact: 'terraform-plan'
-            publishLocation: 'pipeline'  
+            publishLocation: 'pipeline'
               
   - stage: Infracost
     displayName: 'Infracost Cost Estimation'
