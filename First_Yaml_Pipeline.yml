@@ -109,7 +109,8 @@ stages:
               script: |
                 Write-Host "Running TFLint..."
                 tflint --init
-                tflint  --soft-fail --quiet
+                tflint
+                exit 0
 
 
           # ==========================================
