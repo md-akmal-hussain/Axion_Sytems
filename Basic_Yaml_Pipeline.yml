@@ -481,7 +481,7 @@ stages:
       - ManualApproval
 
         
-    condition: eq(1, 2)
+    condition: eq(1, 2)   ### skip apply statge
     # condition: |
     #   and(
     #     in(dependencies.ResumeDecision.result, 'Succeeded'),
