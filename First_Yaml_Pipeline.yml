@@ -388,7 +388,7 @@ stages:
 
     dependsOn:
       - ManualApproval
-    condition: eq(1, 2)  ## skipped ##
+    condition: eq(1, 2)  ### skipped ###
 
     isSkippable: false
     lockBehavior: sequential
