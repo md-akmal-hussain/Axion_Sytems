@@ -352,9 +352,9 @@ stages:
 
         steps:
 
-          # ==========================================
+          # ===========================================
           # DOWNLOAD TERRAFORM PLAN ARTIFACT
-          # ==========================================
+          # ===========================================
 
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Terraform Plan'
